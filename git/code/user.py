@@ -84,34 +84,34 @@ def req_resp(manager_ip, manager_port, req_obj, role, name, command):
     log(role, name, "RESP", txid=req_obj[1], ret=resp.get("ret"), reason=resp.get("reason",""), data=resp.get("data"))
     return resp
 
-def make_register_user_tx(name, my_ip, m_port, c_port):
+def make_register_user_tx(name, my_ip, mport, cport):
     txid = new_id()
     return (
         request(
             "register-user", txid,
-            {"name": name, "ip": my_ip, "m_port": m_port, "c_port": c_port},
-            {"user_name": name, "ip": my_ip, "m_port": m_port, "c_port": c_port}
+            {"name": name, "ip": my_ip, "mport": mport, "cport": cport},
+            {"user_name": name, "ip": my_ip, "mport": mport, "cport": cport}
         ),
         txid
     )
 
-def make_deregister_user_tx(name, my_ip, m_port, c_port):
+def make_deregister_user_tx(name, my_ip, mport, cport):
     txid = new_id()
     return (
         request(
             "deregister-user", txid,
-            {"name": name, "ip": my_ip, "m_port": m_port, "c_port": c_port},
+            {"name": name, "ip": my_ip, "mport": mport, "cport": cport},
             {"user_name": name}
         ),
         txid
     )
 
-def make_configure_dss_tx(dss_name, n, b, name, my_ip, m_port, c_port):
+def make_configure_dss_tx(dss_name, n, b, name, my_ip, mport, cport):
     txid = new_id()
     return (
         request(
             "configure-dss", txid,
-            {"name": name, "ip": my_ip, "m_port": m_port, "c_port": c_port},
+            {"name": name, "ip": my_ip, "mport": mport, "cport": cport},
             {"dss_name": dss_name, "n": n, "striping_unit": b}
         ),
         txid
@@ -122,19 +122,19 @@ def main():
     ap.add_argument("--name", required=True) # user name
     ap.add_argument("--manager-ip", required=True)
     ap.add_argument("--manager-port", type=int, required=True)
-    ap.add_argument("--my-ip", type=int, default="127.0.0.1")
-    ap.add_argument("--m-port", type=int, required=True) # management port - used for communication between the manager and peers
-    ap.add_argument("--c-port", type=int, required=True) # command port - used for communcation between peers
+    ap.add_argument("--my-ip", type=str, default="127.0.0.1")
+    ap.add_argument("--mport", type=int, required=True) # management port - used for communication between the manager and peers
+    ap.add_argument("--cport", type=int, required=True) # command port - used for communcation between peers
     args = ap.parse_args()
 
-    m_sock = udp_socket(args.my_ip, args.m_port)
-    c_sock = udp_socket(args.my_ip, args.c_port)
+    m_sock = udp_socket(args.my_ip, args.mport)
+    c_sock = udp_socket(args.my_ip, args.cport)
     threading.Thread(target=listener, args=(m_sock,"USER",args.name), daemon=True).start()
     threading.Thread(target=listener, args=(c_sock,"USER",args.name), daemon=True).start()
 
-    log("USER", args.name, "START", my_ip=args.my_ip, m_port=args.m_port, c_port=args.c_port)
+    log("USER", args.name, "START", my_ip=args.my_ip, mport=args.mport, cport=args.cport)
 
-    resp = req_resp(args.manager_ip, args.manager_port, make_register_user_tx(args.name, args.my_ip, args.m_port, args.c_port), "USER", args.name, "register-user")
+    resp = req_resp(args.manager_ip, args.manager_port, make_register_user_tx(args.name, args.my_ip, args.mport, args.cport), "USER", args.name, "register-user")
     log("USER", args.name, "READY", note="Commands: configure-dss <name> <n> <b> | deregister")
 
     try:
@@ -146,9 +146,9 @@ def main():
             command = parts[0].lower()
             if command == "configure-dss" and len(parts) == 4:
                 dss_name, n, b = parts[1], int(parts[2]), int(parts[3])
-                req_resp(args.manager_ip, args.manager_port, make_configure_dss_tx(dss_name, n, b, args.name, args.my_ip, args.m_port, args.c_port), "USER", args.name, "configure-dss")
+                req_resp(args.manager_ip, args.manager_port, make_configure_dss_tx(dss_name, n, b, args.name, args.my_ip, args.mport, args.cport), "USER", args.name, "configure-dss")
             elif command == "deregister":
-                req_resp(args.manager_ip, args.manager_port, make_deregister_user_tx(args.name, args.my_ip, args.m_port, args.c_port), "USER", args.name, "deregister-user")
+                req_resp(args.manager_ip, args.manager_port, make_deregister_user_tx(args.name, args.my_ip, args.mport, args.cport), "USER", args.name, "deregister-user")
                 break
             else:
                 log("USER", args.name, "HELP", usage="configure-dss <name> <n>=>=3 <b>=power-of-two[128..1048576] | deregister")

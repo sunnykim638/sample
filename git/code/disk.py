@@ -76,14 +76,14 @@ def listener(sock: socket.socket, role: str, name: str):
         except Exception as e:
             log(role, name, "BADMSG", err=str(e), from_addr=addr)
 
-def register(manager_ip: str, manager_port: int, disk_name: str, my_ip: str, m_port: int, c_port: int):
+def register(manager_ip: str, manager_port: int, disk_name: str, my_ip: str, mport: int, cport: int):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     txid = new_id()
     req = request(
         "register-disk",
         txid,
-        {"name": disk_name, "ip": my_ip, "m_port": m_port, "c_port": c_port},
-        {"disk_name": disk_name, "ip": my_ip, "m_port": m_port, "c_port": c_port}
+        {"name": disk_name, "ip": my_ip, "mport": mport, "cport": cport},
+        {"disk_name": disk_name, "ip": my_ip, "mport": mport, "cport": cport}
     )
     s.sendto(req, (manager_ip, manager_port))
     log("DISK", disk_name, "SEND", txid=txid, command="register-disk", to=f"{manager_ip}:{manager_port}")
@@ -91,13 +91,13 @@ def register(manager_ip: str, manager_port: int, disk_name: str, my_ip: str, m_p
     resp = parse_msg(data)
     log("DISK", disk_name, "RESP", txid=txid, ret=resp.get("ret"), reason=resp.get("reason", ""))
 
-def dereg(manager_ip: str, manager_port: int, disk_name: str, my_ip: str, m_port: int, c_port: int):
+def dereg(manager_ip: str, manager_port: int, disk_name: str, my_ip: str, mport: int, cport: int):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     txid = new_id()
     req = request(
         "deregister-disk",
         txid,
-        {"name": disk_name, "ip": my_ip, "m_port": m_port, "c_port": c_port},
+        {"name": disk_name, "ip": my_ip, "mport": mport, "cport": cport},
         {"disk_name": disk_name}
     )
     s.sendto(req, (manager_ip, manager_port))
@@ -111,19 +111,19 @@ def main():
     ap.add_argument("--name", required=True) # disk name 
     ap.add_argument("--manager-ip", required=True)
     ap.add_argument("--manager-port", type=int, required=True)
-    ap.add_argument("--my-ip", type=int, default="127.0.0.1")
-    ap.add_argument("--m-port", type=int, required=True) # management port - used for communication between the manager and peers
-    ap.add_argument("--c-port", type=int, required=True) # command port - used for communcation between peers
+    ap.add_argument("--my-ip", type=str, default="127.0.0.1")
+    ap.add_argument("--mport", type=int, required=True) # management port - used for communication between the manager and peers
+    ap.add_argument("--cport", type=int, required=True) # command port - used for communcation between peers
     args = ap.parse_args()
 
-    m_sock = udp_socket(args.my_ip, args.m_port)
-    c_sock = udp_socket(args.my_ip, args.c_port)
+    m_sock = udp_socket(args.my_ip, args.mport)
+    c_sock = udp_socket(args.my_ip, args.cport)
 
     threading.Thread(target=listener, args=(m_sock,"DISK",args.name), daemon=True).start()
     threading.Thread(target=listener, args=(c_sock,"DISK",args.name), daemon=True).start()
 
-    log("DISK", args.name, "START", my_ip=args.my_ip, m_port=args.m_port, c_port=args.c_port)
-    register(args.manager_ip, args.manager_port, args.name, args.my_ip, args.m_port, args.c_port)
+    log("DISK", args.name, "START", my_ip=args.my_ip, mport=args.mport, cport=args.cport)
+    register(args.manager_ip, args.manager_port, args.name, args.my_ip, args.mport, args.cport)
 
     log("DISK", args.name, "READY", note="Press Ctrl+C to deregister and exit.")
     try:
@@ -132,7 +132,7 @@ def main():
     except KeyboardInterrupt:
         pass
 
-    dereg(args.manager_ip, args.manager_port, args.name, args.my_ip, args.m_port, args.c_port)
+    dereg(args.manager_ip, args.manager_port, args.name, args.my_ip, args.mport, args.cport)
     log("DISK", args.name, "STOP")
 
 if __name__ == "__main__":

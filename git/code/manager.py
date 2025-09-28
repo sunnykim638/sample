@@ -74,31 +74,35 @@ class Manager:
         self.disks: Dict[str, Dict[str, Any]] = {}
         self.using_ports = set()
 
-    def _port_key(self, ip: str, m_port: int, c_port: int):
-        return (ip, m_port), (ip, c_port)
+    def _port_key(self, ip: str, mport: int, cport: int):
+        return (ip, mport), (ip, cport)
 
-    def _reserve(self, ip: str, m_port: int, c_port: int):
-        a, b = self._port_key(ip, m_port, c_port)
+    def _reserve(self, ip: str, mport: int, cport: int):
+        a, b = self._port_key(ip, mport, cport)
         self.using_ports.add(a)
         self.using_ports.add(b)
 
-    def _release(self, ip: str, m_port: int, c_port: int):
-        a, b = self._port_key(ip, m_port, c_port)
+    def _release(self, ip: str, mport: int, cport: int):
+        a, b = self._port_key(ip, mport, cport)
         self.using_ports.discard(a)
         self.using_ports.discard(b)
 
-    def _check_conflict(self, ip: str, m_port: int, c_port: int) -> bool:
-        a, b = self._port_key(ip, m_port, c_port)
+    def _check_conflict(self, ip: str, mport: int, cport: int) -> bool:
+        a, b = self._port_key(ip, mport, cport)
         return (a in self.using_ports) or (b in self.using_ports)
     
 
 def register_user(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str]:
     user_name = payload.get("user_name", "")
     ip = payload.get("ip", "")
-    mport = payload.get("m_port", -1)
-    cport = payload.get("c_port", -1)
+    mport = payload.get("mport", -1)
+    cport = payload.get("cport", -1)
+    print(user_name)
+    print(ip)
+    print(mport)
+    print(cport)
 
-    if not user_name or not ip or not (2500 <= mport <= 2999) or (2500 <= cport <= 2999):
+    if not user_name or not ip or not (2500 <= mport <= 2999) or not (2500 <= cport <= 2999):
         return FAILURE, REASONS["INVALID_PARAMS"]
     
     if user_name in m.users:
@@ -107,7 +111,7 @@ def register_user(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str]:
     if m._check_conflict(ip, mport, cport):
         return FAILURE, REASONS["PORT_CONFLICT"]
     
-    m.users[user_name] = {"ip": ip, "m_port": mport, "c_port": cport}
+    m.users[user_name] = {"ip": ip, "mport": mport, "cport": cport}
     m._reserve(ip, mport, cport)
     return SUCCESS, ""
 
@@ -116,7 +120,7 @@ def deregister_user(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str]:
     if user_name in m.users:
         return FAILURE, REASONS["USERNAME_NOT_FOUND"]
     user = m.users.pop(user_name)
-    m._release(user["ip"], user["m_port"], user["c_port"])
+    m._release(user["ip"], user["mport"], user["cport"])
     return SUCCESS, ""
 
 
@@ -124,10 +128,10 @@ def deregister_user(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str]:
 def register_disk(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str]:
     disk_name = payload.get("disk_name", "")
     ip = payload.get("ip", "")
-    mport = payload.get("m_port", -1)
-    cport = payload.get("c_port", -1)
+    mport = payload.get("mport", -1)
+    cport = payload.get("cport", -1)
 
-    if not disk_name or not ip or not (2500 <= mport <= 2999) or (2500 <= cport <= 2999):
+    if not disk_name or not ip or not (2500 <= mport <= 2999) or not (2500 <= cport <= 2999):
         return FAILURE, REASONS["INVALID_PARAMS"]
     
     if disk_name in m.disks:
@@ -136,20 +140,20 @@ def register_disk(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str]:
     if m._check_conflict(ip, mport, cport):
         return FAILURE, REASONS["PORT_CONFLICT"]
     
-    m.users[disk_name] = {"ip": ip, "m_port": mport, "c_port": cport, "state": FREE, "dss": None, "striping_unit": None}
+    m.disks[disk_name] = {"ip": ip, "mport": mport, "cport": cport, "state": FREE, "dss": None, "striping_unit": None}
     m._reserve(ip, mport, cport)
     return SUCCESS, ""
 
 def deregister_disk(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str]:
     disk_name = payload.get("user_name", "")
-    if disk_name in m.users:
+    if disk_name in m.disks:
         return FAILURE, REASONS["DISKNAME_NOT_FOUND"]
     info = m.disks[disk_name]
     if info["state"] != FREE:
         return FAILURE, REASONS["DISK_IN_DSS"]
     
-    disk = m.users.pop(disk_name)
-    m._release(disk["ip"], disk["m_port"], disk["c_port"])
+    disk = m.disks.pop(disk_name)
+    m._release(disk["ip"], disk["mport"], disk["cport"])
     return SUCCESS, ""
 
 
@@ -165,6 +169,8 @@ def configure_dss(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str, Dict[s
         return FAILURE, REASONS["DSS_EXITST"], {}
     
     free_disk = [d for d, info in m.disks.items() if info["state"] == FREE]
+    print(len(free_disk))
+    print()
     if len(free_disk) < n:
         return FAILURE, REASONS["INSUFFICIENT_DISKS"], {}
     
@@ -183,7 +189,7 @@ def configure_dss(m: Manager, payload: Dict[str, Any]) -> Tuple[int, str, Dict[s
         "disks": [{
             "disk_name": d,
             "ip": m.disks[d]["ip"],
-            "c_port": m.disks[d]["c_port"]
+            "cport": m.disks[d]["cport"]
         } for d in c] 
     }
     return SUCCESS, "", response
@@ -193,10 +199,10 @@ def main():
     ap = argparse.ArgumentParser(description="DSS Manager")
     ap.add_argument("--mport", type=int, required=True, help="Manager listen port (from 2500 to 2999 )")
     args = ap.parse_args()
-    host = "0.0.0.0"
+    host = "127.0.0.1"
     st = Manager()
     sock = udp_socket(host, args.mport)
-    log("MANAGER", "manager", "START", host=host, m_port=args.mport)
+    log("MANAGER", "manager", "START", host=host, mport=args.mport)
 
     while True:
         data, address = sock.recvfrom(BUF_SIZE)
@@ -207,7 +213,7 @@ def main():
             continue
 
         txid = message.get("txid", "-")
-        command  = message.get("command", "")
+        command  = message.get("cmd", "")
         src  = message.get("from", {})
         payload = message.get("payload", {})
         log("MANAGER", "manager", "RECV", txid=txid, command=command, src=src, from_addr=address)
