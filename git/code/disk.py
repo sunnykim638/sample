@@ -111,19 +111,19 @@ def main():
     ap.add_argument("--name", required=True) # disk name 
     ap.add_argument("--manager-ip", required=True)
     ap.add_argument("--manager-port", type=int, required=True)
+    ap.add_argument("--my-ip", type=int, default="127.0.0.1")
     ap.add_argument("--m-port", type=int, required=True) # management port - used for communication between the manager and peers
     ap.add_argument("--c-port", type=int, required=True) # command port - used for communcation between peers
     args = ap.parse_args()
 
-    my_ip = "127.0.0.1"
-    m_sock = udp_socket(my_ip, args.m_port)
-    c_sock = udp_socket(my_ip, args.c_port)
+    m_sock = udp_socket(args.my_ip, args.m_port)
+    c_sock = udp_socket(args.my_ip, args.c_port)
 
     threading.Thread(target=listener, args=(m_sock,"DISK",args.name), daemon=True).start()
     threading.Thread(target=listener, args=(c_sock,"DISK",args.name), daemon=True).start()
 
-    log("DISK", args.name, "START", my_ip=my_ip, m_port=args.m_port, c_port=args.c_port)
-    register(args.manager_ip, args.manager_port, args.name, my_ip, args.m_port, args.c_port)
+    log("DISK", args.name, "START", my_ip=args.my_ip, m_port=args.m_port, c_port=args.c_port)
+    register(args.manager_ip, args.manager_port, args.name, args.my_ip, args.m_port, args.c_port)
 
     log("DISK", args.name, "READY", note="Press Ctrl+C to deregister and exit.")
     try:
@@ -132,7 +132,7 @@ def main():
     except KeyboardInterrupt:
         pass
 
-    dereg(args.manager_ip, args.manager_port, args.name, my_ip, args.m_port, args.c_port)
+    dereg(args.manager_ip, args.manager_port, args.name, args.my_ip, args.m_port, args.c_port)
     log("DISK", args.name, "STOP")
 
 if __name__ == "__main__":
