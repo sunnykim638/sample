@@ -1,0 +1,3 @@
+2025-11-01 17:19:52,064 - dash_client.py:546 - INFO - Downloading MPD file http://juliet/media/BigBuckBunny/4sec/BigBuckBunny_4s.mpd
+2025-11-01 17:19:52,069 - dash_client.py:110 - ERROR - URLError. Unable to reach Server.Check if Server active
+2025-11-01 17:19:52,070 - read_mpd.py:121 - INFO - Reading the MPD file
